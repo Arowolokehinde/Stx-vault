@@ -218,4 +218,57 @@
   )
 )
 
-;; 
+;; Get readable vault status as ASCII
+(define-read-only (get-vault-status-ascii (vault-id uint))
+  (match (map-get? vaults { vault-id: vault-id })
+    vault-data
+      (let
+        (
+          (current-time stacks-block-time)
+          (is-unlocked (>= current-time (get unlock-time vault-data)))
+          (is-released (get released vault-data))
+        )
+        ;; Convert boolean states to ASCII for readable output
+        (ok {
+          unlocked: (unwrap-panic (to-ascii? is-unlocked)),
+          released: (unwrap-panic (to-ascii? is-released)),
+          owner: (unwrap-panic (to-ascii? (get owner vault-data)))
+        })
+      )
+    ERR_VAULT_NOT_FOUND
+  )
+)
+
+;; Check if a contract is verified
+(define-read-only (is-contract-verified (contract-principal principal))
+  (ok (default-to false
+    (get verified (map-get? verified-contracts { contract: contract-principal }))
+  ))
+)
+
+;; Get contract hash if available
+(define-read-only (get-contract-hash (contract-principal principal))
+  (ok (contract-hash? contract-principal))
+)
+
+;; Get current block timestamp
+(define-read-only (get-current-time)
+  (ok stacks-block-time)
+)
+
+;; Get total number of vaults created
+(define-read-only (get-vault-count)
+  (ok (var-get vault-counter))
+)
+
+;; Check if user has registered a passkey
+(define-read-only (has-passkey (user principal))
+  (ok (is-some (map-get? user-passkeys { user: user })))
+)
+
+;; private functions
+
+;; Helper to validate time
+(define-private (is-time-valid (unlock-time uint))
+  (>= stacks-block-time unlock-time)
+)
