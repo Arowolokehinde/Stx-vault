@@ -97,3 +97,56 @@
     (ok vault-id)
   )
 )
+
+
+;; Release funds from vault if time has passed
+(define-public (release-vault (vault-id uint))
+  (let
+    (
+      (vault-data (unwrap! (map-get? vaults { vault-id: vault-id }) ERR_VAULT_NOT_FOUND))
+      (current-time stacks-block-time)
+    )
+    (asserts! (is-eq tx-sender (get owner vault-data)) ERR_UNAUTHORIZED)
+    (asserts! (not (get released vault-data)) ERR_VAULT_NOT_FOUND)
+    (asserts! (>= current-time (get unlock-time vault-data)) ERR_STILL_LOCKED)
+
+    ;; Mark as released
+    (map-set vaults
+      { vault-id: vault-id }
+      (merge vault-data { released: true })
+    )
+
+    (ok true)
+  )
+)
+
+;; Release vault with passkey authentication using secp256r1-verify
+(define-public (release-vault-with-passkey
+    (vault-id uint)
+    (message-hash (buff 32))
+    (signature (buff 64)))
+  (let
+    (
+      (vault-data (unwrap! (map-get? vaults { vault-id: vault-id }) ERR_VAULT_NOT_FOUND))
+      (current-time stacks-block-time)
+      (passkey-data (unwrap! (map-get? user-passkeys { user: tx-sender }) ERR_UNAUTHORIZED))
+    )
+    (asserts! (is-eq tx-sender (get owner vault-data)) ERR_UNAUTHORIZED)
+    (asserts! (not (get released vault-data)) ERR_VAULT_NOT_FOUND)
+    (asserts! (>= current-time (get unlock-time vault-data)) ERR_STILL_LOCKED)
+
+    ;; Verify passkey signature using Clarity 4's secp256r1-verify
+    (asserts!
+      (secp256r1-verify message-hash signature (get public-key passkey-data))
+      ERR_INVALID_SIGNATURE
+    )
+
+    ;; Mark as released
+    (map-set vaults
+      { vault-id: vault-id }
+      (merge vault-data { released: true })
+    )
+
+    (ok true)
+  )
+)
