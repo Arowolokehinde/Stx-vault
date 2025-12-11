@@ -150,3 +150,72 @@
     (ok true)
   )
 )
+
+;; Verify and whitelist a contract using contract-hash?
+(define-public (verify-contract (contract-principal principal) (expected-hash (buff 32)))
+  (begin
+    (asserts! (is-eq tx-sender CONTRACT_OWNER) ERR_UNAUTHORIZED)
+
+    ;; Store verified contract with hash
+    (map-set verified-contracts
+      { contract: contract-principal }
+      { verified: true, hash: expected-hash }
+    )
+
+    (ok true)
+  )
+)
+
+;; Call external contract with asset restrictions using restrict-assets?
+(define-public (release-to-callback
+    (vault-id uint)
+    (callback-contract <vault-callback>))
+  (let
+    (
+      (vault-data (unwrap! (map-get? vaults { vault-id: vault-id }) ERR_VAULT_NOT_FOUND))
+      (current-time stacks-block-time)
+    )
+    (begin
+      (asserts! (is-eq tx-sender (get owner vault-data)) ERR_UNAUTHORIZED)
+      (asserts! (not (get released vault-data)) ERR_VAULT_NOT_FOUND)
+      (asserts! (>= current-time (get unlock-time vault-data)) ERR_STILL_LOCKED)
+
+      ;; Mark as released
+      (map-set vaults
+        { vault-id: vault-id }
+        (merge vault-data { released: true })
+      )
+
+      ;; Call external contract callback
+      (contract-call? callback-contract on-release
+        (get owner vault-data)
+        (get amount vault-data))
+    )
+  )
+)
+
+;; read only functions
+
+;; Get vault information with ASCII status message using to-ascii?
+(define-read-only (get-vault-info (vault-id uint))
+  (match (map-get? vaults { vault-id: vault-id })
+    vault-data
+      (let
+        (
+          (current-time stacks-block-time)
+          (is-unlocked (>= current-time (get unlock-time vault-data)))
+          (status-string (to-ascii? is-unlocked))
+        )
+        (ok {
+          vault-data: vault-data,
+          is-unlocked: is-unlocked,
+          current-time: current-time,
+          time-remaining: (if is-unlocked u0 (- (get unlock-time vault-data) current-time)),
+          status-message: (unwrap-panic status-string)
+        })
+      )
+    ERR_VAULT_NOT_FOUND
+  )
+)
+
+;; 
