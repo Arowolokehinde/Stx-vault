@@ -439,3 +439,53 @@
     ERR_VAULT_NOT_FOUND
   )
 )
+
+;; Get time remaining until unlock
+(define-read-only (get-time-remaining (vault-id uint))
+  (match (map-get? vaults { vault-id: vault-id })
+    vault-data
+      (let
+        (
+          (current-time stacks-block-time)
+          (unlock-time (get unlock-time vault-data))
+        )
+        (if (>= current-time unlock-time)
+          (ok u0)
+          (ok (- unlock-time current-time))
+        )
+      )
+    ERR_VAULT_NOT_FOUND
+  )
+)
+
+;; Get vault owner
+(define-read-only (get-vault-owner (vault-id uint))
+  (match (map-get? vaults { vault-id: vault-id })
+    vault-data (ok (get owner vault-data))
+    ERR_VAULT_NOT_FOUND
+  )
+)
+
+;; Get vault amount
+(define-read-only (get-vault-amount (vault-id uint))
+  (match (map-get? vaults { vault-id: vault-id })
+    vault-data (ok (get amount vault-data))
+    ERR_VAULT_NOT_FOUND
+  )
+)
+
+;; Check if vault is released
+(define-read-only (is-vault-released (vault-id uint))
+  (match (map-get? vaults { vault-id: vault-id })
+    vault-data (ok (get released vault-data))
+    ERR_VAULT_NOT_FOUND
+  )
+)
+
+;; private functions
+
+;; Helper to validate time
+(define-private (is-time-valid (unlock-time uint))
+  (>= stacks-block-time unlock-time)
+)
+
