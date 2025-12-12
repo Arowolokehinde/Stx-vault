@@ -341,3 +341,101 @@
     error false
   )
 )
+
+
+;; read only functions
+
+;; Get vault information with ASCII status message using to-ascii?
+(define-read-only (get-vault-info (vault-id uint))
+  (match (map-get? vaults { vault-id: vault-id })
+    vault-data
+      (let
+        (
+          (current-time stacks-block-time)
+          (is-unlocked (>= current-time (get unlock-time vault-data)))
+          (status-string (to-ascii? is-unlocked))
+        )
+        (ok {
+          vault-data: vault-data,
+          is-unlocked: is-unlocked,
+          current-time: current-time,
+          time-remaining: (if is-unlocked u0 (- (get unlock-time vault-data) current-time)),
+          status-message: (unwrap-panic status-string)
+        })
+      )
+    ERR_VAULT_NOT_FOUND
+  )
+)
+
+;; Get readable vault status as ASCII
+(define-read-only (get-vault-status-ascii (vault-id uint))
+  (match (map-get? vaults { vault-id: vault-id })
+    vault-data
+      (let
+        (
+          (current-time stacks-block-time)
+          (is-unlocked (>= current-time (get unlock-time vault-data)))
+          (is-released (get released vault-data))
+        )
+        ;; Convert boolean states to ASCII for readable output
+        (ok {
+          unlocked: (unwrap-panic (to-ascii? is-unlocked)),
+          released: (unwrap-panic (to-ascii? is-released)),
+          owner: (unwrap-panic (to-ascii? (get owner vault-data)))
+        })
+      )
+    ERR_VAULT_NOT_FOUND
+  )
+)
+
+;; Check if a contract is verified
+(define-read-only (is-contract-verified (contract-principal principal))
+  (ok (default-to false
+    (get verified (map-get? verified-contracts { contract: contract-principal }))
+  ))
+)
+
+;; Get contract hash if available
+(define-read-only (get-contract-hash (contract-principal principal))
+  (ok (contract-hash? contract-principal))
+)
+
+;; Get current block timestamp
+(define-read-only (get-current-time)
+  (ok stacks-block-time)
+)
+
+;; Get total number of vaults created
+(define-read-only (get-vault-count)
+  (ok (var-get vault-counter))
+)
+
+;; Check if user has registered a passkey
+(define-read-only (has-passkey (user principal))
+  (ok (is-some (map-get? user-passkeys { user: user })))
+)
+
+;; Get vault beneficiary
+(define-read-only (get-vault-beneficiary (vault-id uint))
+  (match (map-get? vaults { vault-id: vault-id })
+    vault-data (ok (get beneficiary vault-data))
+    ERR_VAULT_NOT_FOUND
+  )
+)
+
+;; Get vault metadata
+(define-read-only (get-vault-metadata (vault-id uint))
+  (match (map-get? vaults { vault-id: vault-id })
+    vault-data (ok (get metadata vault-data))
+    ERR_VAULT_NOT_FOUND
+  )
+)
+
+;; Check if vault is unlocked
+(define-read-only (is-vault-unlocked (vault-id uint))
+  (match (map-get? vaults { vault-id: vault-id })
+    vault-data
+      (ok (>= stacks-block-time (get unlock-time vault-data)))
+    ERR_VAULT_NOT_FOUND
+  )
+)
