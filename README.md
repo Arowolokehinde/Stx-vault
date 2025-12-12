@@ -1,6 +1,6 @@
 # Stx-analytics - Time-Locked Asset Vault
 
-A Clarity 4 smart contract demonstrating advanced features including time-based vault locks, passkey authentication, and contract verification.
+A  smart contract demonstrating advanced features including time-based vault locks, passkey authentication, and contract verification.
 
 ## Overview
 
@@ -16,14 +16,27 @@ This contract implements a secure vault system that allows users to create time-
 ### 1. Time-Locked Vaults
 Create vaults that lock STX tokens for a specified duration. Funds can only be released after the unlock time has passed.
 
-### 2. Passkey Authentication (secp256r1)
+### 2. Vault Management
+- Add more STX to existing vaults
+- Extend lock duration
+- Transfer ownership
+- Set custom metadata/notes
+- Batch operations for multiple vaults
+
+### 3. Beneficiary & Inheritance
+Set beneficiaries who can claim vaults if the owner doesn't claim within a grace period (30 days after unlock).
+
+### 4. Passkey Authentication (secp256r1)
 Users can register hardware wallet public keys and release vaults using biometric signatures.
 
-### 3. Contract Verification
+### 5. Contract Verification
 Verify and whitelist external contracts before interaction using on-chain hash verification.
 
-### 4. External Contract Callbacks
+### 6. External Contract Callbacks
 Safely call external contracts when releasing vaults.
+
+### 7. Advanced Analytics
+Query vault status, time remaining, ownership, and other metrics via read-only functions.
 
 ## Contract Functions
 
@@ -64,9 +77,110 @@ Create a time-locked vault.
 
 ---
 
-### Read-Only Functions
+#### `add-to-vault`
+Add more STX to an existing vault.
 
-All functions are currently commented out. Uncomment them to enable:
+```clarity
+(add-to-vault (vault-id uint) (additional-amount uint))
+```
+
+**Parameters:**
+- `vault-id`: ID of the vault
+- `additional-amount`: Amount of STX to add (in microSTX)
+
+**Returns:** `(ok true)` on success
+
+---
+
+#### `extend-vault-lock`
+Extend the lock duration of a vault.
+
+```clarity
+(extend-vault-lock (vault-id uint) (additional-time uint))
+```
+
+**Parameters:**
+- `vault-id`: ID of the vault
+- `additional-time`: Additional seconds to add to unlock time
+
+**Returns:** `(ok true)` on success
+
+---
+
+#### `transfer-vault-ownership`
+Transfer vault ownership to another principal.
+
+```clarity
+(transfer-vault-ownership (vault-id uint) (new-owner principal))
+```
+
+**Parameters:**
+- `vault-id`: ID of the vault
+- `new-owner`: Principal of the new owner
+
+**Returns:** `(ok true)` on success
+
+---
+
+#### `set-beneficiary`
+Set a beneficiary who can claim the vault after a grace period.
+
+```clarity
+(set-beneficiary (vault-id uint) (beneficiary principal))
+```
+
+**Parameters:**
+- `vault-id`: ID of the vault
+- `beneficiary`: Principal of the beneficiary
+
+**Returns:** `(ok true)` on success
+
+---
+
+#### `claim-as-beneficiary`
+Claim a vault as the beneficiary after the grace period (30 days after unlock).
+
+```clarity
+(claim-as-beneficiary (vault-id uint))
+```
+
+**Parameters:**
+- `vault-id`: ID of the vault
+
+**Returns:** `(ok true)` on success
+
+---
+
+#### `set-vault-metadata`
+Add a description or note to a vault.
+
+```clarity
+(set-vault-metadata (vault-id uint) (metadata (string-ascii 100)))
+```
+
+**Parameters:**
+- `vault-id`: ID of the vault
+- `metadata`: ASCII string (max 100 characters)
+
+**Returns:** `(ok true)` on success
+
+---
+
+#### `release-vaults-batch`
+Release multiple vaults in a single transaction.
+
+```clarity
+(release-vaults-batch (vault-ids (list 10 uint)))
+```
+
+**Parameters:**
+- `vault-ids`: List of vault IDs to release (max 10)
+
+**Returns:** `(ok (list bool))` with success status for each vault
+
+---
+
+### Read-Only Functions
 
 #### `get-vault-info`
 Get detailed vault information with ASCII status.
