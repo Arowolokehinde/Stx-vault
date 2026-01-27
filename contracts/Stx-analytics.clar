@@ -89,6 +89,9 @@
     (asserts! (> amount u0) ERR_INVALID_AMOUNT)
     (asserts! (>= lock-duration MIN_LOCK_DURATION) ERR_INVALID_AMOUNT)
 
+    ;; ⚠️ CRITICAL: Transfer STX to contract FIRST
+    (try! (stx-transfer? amount tx-sender (as-contract tx-sender)))
+
     ;; Store vault data
     (map-set vaults
       { vault-id: vault-id }
@@ -127,6 +130,8 @@
       { vault-id: vault-id }
       (merge vault-data { released: true })
     )
+
+    (try! (stx-transfer? (get amount vault-data) (as-contract tx-sender) (get owner vault-data)))
 
     (ok true)
   )
@@ -216,6 +221,9 @@
     (asserts! (not (get released vault-data)) ERR_VAULT_NOT_FOUND)
     (asserts! (> additional-amount u0) ERR_INVALID_AMOUNT)
 
+    ;; Transfer additional STX to contract
+    (try! (stx-transfer? additional-amount tx-sender (as-contract tx-sender)))
+
     ;; Update vault amount
     (map-set vaults
       { vault-id: vault-id }
@@ -304,6 +312,9 @@
       (merge vault-data { released: true })
     )
 
+    ;; Missing STX transfer to beneficiary! Add:
+    (try! (stx-transfer? (get amount vault-data) (as-contract tx-sender) beneficiary-principal))
+
     (ok true)
   )
 )
@@ -327,10 +338,36 @@
 )
 
 ;; Batch release multiple vaults
-(define-public (release-vaults-batch (vault-ids (list 10 uint)))
-  (begin
-    (asserts! (<= (len vault-ids) MAX_BATCH_SIZE) ERR_BATCH_SIZE_EXCEEDED)
-    (ok (map release-vault-helper vault-ids))
+(define-public (release-vault-with-passkey
+    (vault-id uint)
+    (message-hash (buff 32))
+    (signature (buff 64)))
+  (let
+    (
+      (vault-data (unwrap! (map-get? vaults { vault-id: vault-id }) ERR_VAULT_NOT_FOUND))
+      (current-time stacks-block-time)
+      (passkey-data (unwrap! (map-get? user-passkeys { user: tx-sender }) ERR_UNAUTHORIZED))
+    )
+    (asserts! (is-eq tx-sender (get owner vault-data)) ERR_UNAUTHORIZED)
+    (asserts! (not (get released vault-data)) ERR_VAULT_NOT_FOUND)
+    (asserts! (>= current-time (get unlock-time vault-data)) ERR_STILL_LOCKED)
+
+    ;; Verify passkey signature using Clarity 4's secp256r1-verify
+    (asserts!
+      (secp256r1-verify message-hash signature (get public-key passkey-data))
+      ERR_INVALID_SIGNATURE
+    )
+
+    ;; Mark as released
+    (map-set vaults
+      { vault-id: vault-id }
+      (merge vault-data { released: true })
+    )
+
+    ;; Missing STX transfer! Add:
+    (try! (stx-transfer? (get amount vault-data) (as-contract tx-sender) (get owner vault-data)))
+
+    (ok true)
   )
 )
 
